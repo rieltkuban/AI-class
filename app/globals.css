@@ -1,0 +1,32 @@
+@import "tailwindcss";
+
+/*
+ * Шрифты подключаются через next/font/local, файлы .woff2 лежат в public/fonts.
+ * Файлы пока не переданы заказчиком — до этого работают системные стеки.
+ * Обращения к fonts.googleapis.com запрещены (промпт, п. 2.2).
+ */
+@theme {
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --font-sans: ui-sans-serif, system-ui, "Segoe UI", Roboto, Arial, sans-serif;
+
+  --color-term-bg: #07090b;
+  --color-term-fg: #d7dee5;
+  --color-term-dim: #6b7784;
+  --color-term-accent: #7ee0a5;
+  --color-term-warn: #e0b57e;
+}
+
+html,
+body {
+  background: var(--color-term-bg);
+  color: var(--color-term-fg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
