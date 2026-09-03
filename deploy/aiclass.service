@@ -1,0 +1,41 @@
+# systemd-юнит приложения.
+# Кладётся в /etc/systemd/system/aiclass.service
+#
+# Один процесс, без кластера. Это принципиально: лимит прогонов на посетителя
+# живёт в памяти процесса. В кластере каждый воркер считал бы свой счётчик,
+# и реальный лимит умножился бы на их число.
+
+[Unit]
+Description=AI-class site (Next.js)
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/aiclass
+
+# Секреты лежат вне репозитория, права 600, владелец www-data.
+EnvironmentFile=/var/www/aiclass/.env.production
+Environment=NODE_ENV=production
+
+# Порт 3000 и только 127.0.0.1: наружу приложение не торчит, наружу смотрит nginx.
+ExecStart=/usr/bin/npm run start
+
+Restart=always
+RestartSec=5
+
+# Логи уходят в journald, ротация настраивается там же — диск не забьётся.
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=aiclass
+
+# Немного изоляции: приложению не нужен доступ никуда, кроме своего каталога.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/www/aiclass/data /var/www/aiclass/.next
+
+[Install]
+WantedBy=multi-user.target
