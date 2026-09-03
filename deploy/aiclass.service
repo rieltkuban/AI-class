@@ -18,9 +18,15 @@ WorkingDirectory=/var/www/aiclass
 # Секреты лежат вне репозитория, права 600, владелец www-data.
 EnvironmentFile=/var/www/aiclass/.env.production
 Environment=NODE_ENV=production
+# Под ProtectSystem=strict процессу нужен писчий HOME, иначе Node и его
+# зависимости споткнутся на попытке записать во временный каталог.
+Environment=HOME=/var/www/aiclass
 
+# Запускаем next напрямую, без npm: одним звеном меньше, не нужен кеш npm
+# и не важно, куда установлен сам npm. Путь к node даёт пакет из NodeSource.
+# Проверить перед запуском: command -v node — должно быть /usr/bin/node.
 # Порт 3000 и только 127.0.0.1: наружу приложение не торчит, наружу смотрит nginx.
-ExecStart=/usr/bin/npm run start
+ExecStart=/usr/bin/node /var/www/aiclass/node_modules/next/dist/bin/next start -p 3000 -H 127.0.0.1
 
 Restart=always
 RestartSec=5
@@ -35,7 +41,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/var/www/aiclass/data /var/www/aiclass/.next
+ReadWritePaths=/var/www/aiclass
 
 [Install]
 WantedBy=multi-user.target

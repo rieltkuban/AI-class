@@ -70,17 +70,26 @@ ufw allow OpenSSH && ufw allow 'Nginx Full' && ufw --force enable
 
 ## 2. Код на сервере
 
-```
-mkdir -p /var/www && git clone https://github.com/rieltkuban/AI-class.git /var/www/aiclass && cd /var/www/aiclass
-```
-
-Если репозиторий приватный, git спросит логин и токен GitHub.
-
-Каталог для заявок и права:
+Код лежит в рабочей ветке, а не в `main` — клонируем именно её:
 
 ```
-mkdir -p /var/www/aiclass/data && chown -R www-data:www-data /var/www/aiclass
+mkdir -p /var/www && git clone -b claude/new-site-github-repo-k7ojn1 https://github.com/rieltkuban/AI-class.git /var/www/aiclass && cd /var/www/aiclass
 ```
+
+Репозиторий приватный: git спросит логин GitHub и **токен** вместо пароля.
+Токен создаётся на https://github.com/settings/tokens (Personal access token,
+права `repo`). Обычный пароль от аккаунта GitHub давно не принимает.
+
+Когда ветка будет влита в `main`, флаг `-b` можно убрать.
+
+Каталог для заявок:
+
+```
+mkdir -p /var/www/aiclass/data
+```
+
+Права выставим **после** сборки, в шаге 4 — иначе собранные под root файлы
+останутся недоступными службе.
 
 ---
 
@@ -128,9 +137,31 @@ cd /var/www/aiclass && npm ci --no-audit --no-fund && npm run build
 Если сборка упала со словами `JavaScript heap out of memory` — не хватило
 памяти, вернитесь к шагу 1.1.
 
+### 4.1. Права — обязательно после сборки
+
+Собирали под root, а работать будет `www-data`. Без этого шага служба
+не сможет писать в `.next/cache` и в файл заявок:
+
+```
+chown -R www-data:www-data /var/www/aiclass
+```
+
+То же самое нужно повторить, если когда-нибудь соберёте проект руками
+под root. Скрипт обновления из шага 9 делает это сам.
+
 ---
 
 ## 5. Служба
+
+Юнит запускает Next напрямую через `/usr/bin/node` — без npm, одним звеном
+меньше. Сначала убеждаемся, что node лежит именно там:
+
+```
+command -v node
+```
+
+Должно вывести `/usr/bin/node`. Если путь другой (например, ставили через nvm) —
+поправьте строку `ExecStart` в `/var/www/aiclass/deploy/aiclass.service`.
 
 ```
 cp /var/www/aiclass/deploy/aiclass.service /etc/systemd/system/aiclass.service && systemctl daemon-reload && systemctl enable --now aiclass
@@ -158,40 +189,57 @@ journalctl -u aiclass -f
 
 ## 6. nginx и сертификат
 
-Копируем конфиг и подставляем свой домен:
+### 6.1. Сначала HTTP — чтобы certbot смог проверить домен
+
+Кладём конфиг первого запуска и подставляем свой домен:
 
 ```
-cp /var/www/aiclass/deploy/nginx.conf /etc/nginx/sites-available/aiclass && sed -i 's/example.ru/ВАШ_ДОМЕН/g' /etc/nginx/sites-available/aiclass
+cp /var/www/aiclass/deploy/nginx-http.conf /etc/nginx/sites-available/aiclass && sed -i 's/example.ru/ВАШ_ДОМЕН/g' /etc/nginx/sites-available/aiclass
 ```
 
-Временно убираем строки про сертификат, чтобы nginx запустился до его выпуска:
-
-```
-sed -i '/ssl_certificate/d;/listen 443/d;/http2 on/d' /etc/nginx/sites-available/aiclass
-```
-
-Включаем сайт и убираем заглушку по умолчанию:
+Включаем сайт, убираем заглушку по умолчанию, проверяем и перезагружаем:
 
 ```
 ln -sf /etc/nginx/sites-available/aiclass /etc/nginx/sites-enabled/aiclass && rm -f /etc/nginx/sites-enabled/default && nginx -t && systemctl reload nginx
 ```
 
-Выпускаем сертификат — certbot сам вернёт блок `443` и настроит редирект:
+Если `nginx -t` ругается на `[::]:80` — у сервера нет IPv6. Строка про IPv6
+в конфиге уже закомментирована, так что этого быть не должно; если IPv6 у вас
+есть и хотите его включить, раскомментируйте строки `listen [::]:...`.
+
+Сайт уже должен открываться по http://ВАШ_ДОМЕН.
+
+### 6.2. Сертификат
 
 ```
 apt install -y certbot python3-certbot-nginx && certbot --nginx -d ВАШ_ДОМЕН -d www.ВАШ_ДОМЕН --agree-tos -m ВАША_ПОЧТА --redirect
 ```
 
-Проверить автопродление:
+### 6.3. Боевой конфиг с TLS
+
+certbot умеет дописывать конфиг сам, но делает это грубо и может потерять
+блок `location /api/run` с отключённой буферизацией — то есть убить весь
+потоковый вывод. Поэтому после выпуска сертификата ставим готовый конфиг:
+
+```
+cp /var/www/aiclass/deploy/nginx.conf /etc/nginx/sites-available/aiclass && sed -i 's/example.ru/ВАШ_ДОМЕН/g' /etc/nginx/sites-available/aiclass && nginx -t && systemctl reload nginx
+```
+
+Проверяем автопродление:
 
 ```
 certbot renew --dry-run
 ```
 
-**Важно.** certbot переписывает конфиг и может потерять блок `location /api/run`
-с отключённым буфером. После выпуска сертификата откройте
-`/etc/nginx/sites-available/aiclass` и убедитесь, что этот блок на месте.
-Если его нет — перенесите из `deploy/nginx.conf` руками.
+**Проверьте глазами**, что в `/etc/nginx/sites-available/aiclass` остался блок:
+
+```
+location /api/run {
+    ...
+    proxy_buffering off;
+```
+
+Без него сайт технически работает, но продающий эффект пропадает.
 
 ---
 
