@@ -15,18 +15,27 @@ User=www-data
 Group=www-data
 WorkingDirectory=/var/www/aiclass
 
-# Секреты лежат вне репозитория, права 600, владелец www-data.
-EnvironmentFile=/var/www/aiclass/.env.production
+# Значения по умолчанию. Объявлены ДО EnvironmentFile, чтобы файл мог их
+# переопределить: порядок в systemd важен, побеждает последнее объявление.
 Environment=NODE_ENV=production
+Environment=PORT=3000
+# Адрес, на котором слушает приложение.
+#   127.0.0.1     — когда прокси стоит на том же хосте (nginx, Caddy на хосте);
+#   172.18.0.1    — когда прокси живёт в Docker и должен дотянуться до хоста;
+#                   это адрес шлюза Docker-сети, наружу он не смотрит.
+Environment=BIND_HOST=127.0.0.1
 # Под ProtectSystem=strict процессу нужен писчий HOME, иначе Node и его
 # зависимости споткнутся на попытке записать во временный каталог.
 Environment=HOME=/var/www/aiclass
+
+# Секреты лежат вне репозитория, права 600, владелец www-data.
+EnvironmentFile=/var/www/aiclass/.env.production
 
 # Запускаем next напрямую, без npm: одним звеном меньше, не нужен кеш npm
 # и не важно, куда установлен сам npm. Путь к node даёт пакет из NodeSource.
 # Проверить перед запуском: command -v node — должно быть /usr/bin/node.
 # Порт 3000 и только 127.0.0.1: наружу приложение не торчит, наружу смотрит nginx.
-ExecStart=/usr/bin/node /var/www/aiclass/node_modules/next/dist/bin/next start -p 3000 -H 127.0.0.1
+ExecStart=/usr/bin/node /var/www/aiclass/node_modules/next/dist/bin/next start -p ${PORT} -H ${BIND_HOST}
 
 Restart=always
 RestartSec=5
