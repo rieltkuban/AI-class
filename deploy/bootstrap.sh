@@ -32,7 +32,20 @@ export DEBIAN_FRONTEND=noninteractive
 
 say "Ставлю пакеты"
 apt-get update -qq
-apt-get install -y -qq curl git nginx ufw ca-certificates
+apt-get install -y -qq curl git ca-certificates
+
+# nginx ставим только если 80 и 443 свободны. Если их держит Docker, Caddy
+# или другой сервер — nginx всё равно не смог бы их занять, а установка пакета
+# подняла бы конкурента уже работающему сайту.
+if ss -lptn 2>/dev/null | grep -qE ':(80|443)\s'; then
+  warn "Порты 80 и 443 уже заняты — nginx НЕ ставлю."
+  ss -lptn | grep -E ':(80|443)\s' | sed 's/^/    /'
+  warn "Подключать сайт нужно к тому, что стоит на входе: см. раздел 6-альт в deploy/README.md"
+  EDGE_BUSY=1
+else
+  apt-get install -y -qq nginx
+  EDGE_BUSY=0
+fi
 
 # ── Swap, если памяти меньше 2 ГБ ──────────────────────────────────────
 mem_mb=$(awk '/MemTotal/ {print int($2/1024)}' /proc/meminfo)
@@ -65,11 +78,22 @@ fi
 say "node: $(command -v node), версия $(node -v)"
 
 # ── Файрвол ────────────────────────────────────────────────────────────
-say "Настраиваю файрвол"
-ufw allow OpenSSH >/dev/null
-ufw allow 'Nginx Full' >/dev/null
-ufw --force enable >/dev/null
-say "Открыты: SSH, 80, 443"
+# Если ufw уже включён, НЕ трогаем: правила настроены под работающий сайт,
+# а неверная правка при нестандартном порте SSH выкидывает с сервера.
+if command -v ufw >/dev/null && ufw status 2>/dev/null | head -1 | grep -q active; then
+  say "ufw уже включён — оставляю как есть"
+  ufw status | head -8 | sed 's/^/    /'
+elif [ "${SETUP_FIREWALL:-0}" = "1" ]; then
+  say "Настраиваю файрвол"
+  apt-get install -y -qq ufw
+  ufw allow OpenSSH >/dev/null
+  ufw allow 80/tcp >/dev/null
+  ufw allow 443/tcp >/dev/null
+  ufw --force enable >/dev/null
+  say "Открыты: SSH, 80, 443"
+else
+  say "ufw не настраиваю. Нужно — запустите с SETUP_FIREWALL=1"
+fi
 
 # ── Код ────────────────────────────────────────────────────────────────
 if [ -d "$APP_DIR/.git" ]; then
@@ -132,7 +156,9 @@ cat <<'FINAL'
      nano /var/www/aiclass/.env.production
      systemctl restart aiclass
 
-2. Поднять nginx на своём домене (шаг 6.1 инструкции):
+2. Подключить сайт к веб-серверу.
+   Если 80 и 443 держит Docker или Caddy — раздел 6-альт инструкции.
+   Если порты были свободны и nginx поставился (шаг 6.1):
      cp /var/www/aiclass/deploy/nginx-http.conf /etc/nginx/sites-available/aiclass
      sed -i 's/example.ru/ВАШ_ДОМЕН/g' /etc/nginx/sites-available/aiclass
      ln -sf /etc/nginx/sites-available/aiclass /etc/nginx/sites-enabled/aiclass
