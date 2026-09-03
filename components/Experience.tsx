@@ -10,7 +10,7 @@ import { SkipLink } from '@/components/SkipLink';
 import { Terminal } from '@/components/Terminal';
 import { copy } from '@/content/copy';
 import { track, trackLeaving } from '@/lib/analytics';
-import type { EstimateResult } from '@/lib/pricing';
+import { isContour, type EstimateResult } from '@/lib/pricing';
 import { initialState, reducer, type Screen } from '@/lib/state';
 import { formatVisitDate, readVisit, writeVisit } from '@/lib/visit';
 
@@ -95,7 +95,13 @@ export function Experience({ full }: { full: boolean }) {
           {visit && (
             <div className="mt-10 border-t border-[var(--color-term-dim)]/20 pt-6">
               <p className="text-xs text-[var(--color-term-dim)]">
-                {copy.returnVisit.heading}. {copy.returnVisit.body(formatVisitDate(visit.at), visit.contour)}
+                {copy.returnVisit.heading}.{' '}
+                {copy.returnVisit.body(
+                  formatVisitDate(visit.at),
+                  isContour(visit.contour)
+                    ? copy.calibration.contour.options[visit.contour]
+                    : visit.contour,
+                )}
               </p>
               <button
                 type="button"
@@ -152,7 +158,11 @@ export function Experience({ full }: { full: boolean }) {
       )}
 
       {state.screen === 'admission' && (
-        <Admission answers={state.answers} source={skipUsed.current ? 'быстрый путь' : 'полный путь'} />
+        <Admission
+          answers={state.answers}
+          dayCost={state.estimate?.day ?? null}
+          source={skipUsed.current ? 'быстрый путь' : 'полный путь'}
+        />
       )}
 
       <footer className="mt-16 border-t border-[var(--color-term-dim)]/20 pt-6 text-xs text-[var(--color-term-dim)]">

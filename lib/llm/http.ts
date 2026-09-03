@@ -39,8 +39,19 @@ function classify(status: number): LlmError {
  * Повторяются только 429 и 5xx, максимум два раза, с экспоненциальной задержкой.
  * На 401/403 повторов нет — это конфигурация, а не сбой.
  *
- * Таймаут на ПЕРВЫЙ байт живёт здесь; общий лимит — снаружи, отдельным сигналом.
+ * Таймаут на ПЕРВЫЙ токен живёт здесь, но снимается вызывающим кодом,
+ * как только пришла первая дельта: см. cancelFirstTokenTimeout в результате.
+ * Держать его до конца ответа нельзя — иначе длинный качественный ответ
+ * оборвётся ровно на 12-й секунде просто потому, что он длинный.
+ *
+ * Общий лимит на весь ответ — снаружи, отдельным сигналом.
  */
+export interface OpenedStream {
+  response: Response;
+  /** Снять таймаут первого токена. Вызывается на первой дельте. */
+  cancelFirstTokenTimeout: () => void;
+}
+
 export async function openStream(args: {
   url: string;
   headers: Record<string, string>;
@@ -49,16 +60,31 @@ export async function openStream(args: {
   model: string;
   firstTokenTimeoutMs: number;
   signal?: AbortSignal;
-}): Promise<Response> {
+}): Promise<OpenedStream> {
   const { url, headers, body, transport, model, firstTokenTimeoutMs, signal } = args;
   let lastError: unknown;
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     const started = Date.now();
-    const firstTokenTimer = AbortSignal.timeout(firstTokenTimeoutMs);
+
+    // Свой контроллер на попытку: таймер бьёт по нему и снимается вручную.
+    const attemptAbort = new AbortController();
+    let timedOut = false;
+    let timer: ReturnType<typeof setTimeout> | undefined = setTimeout(() => {
+      timedOut = true;
+      attemptAbort.abort();
+    }, firstTokenTimeoutMs);
+
+    const cancelFirstTokenTimeout = () => {
+      if (timer !== undefined) {
+        clearTimeout(timer);
+        timer = undefined;
+      }
+    };
+
     const composed = signal
-      ? AbortSignal.any([signal, firstTokenTimer])
-      : firstTokenTimer;
+      ? AbortSignal.any([signal, attemptAbort.signal])
+      : attemptAbort.signal;
 
     try {
       const response = await fetch(url, {
@@ -70,6 +96,7 @@ export async function openStream(args: {
       });
 
       if (!response.ok || !response.body) {
+        cancelFirstTokenTimeout();
         // Тело читаем только в лог, пользователю оно не уходит.
         const detail = await response.text().catch(() => '');
         const error = classify(response.status);
@@ -88,8 +115,10 @@ export async function openStream(args: {
       }
 
       logRequest({ transport, model, status: response.status, durationMs: Date.now() - started, attempt });
-      return response;
+      return { response, cancelFirstTokenTimeout };
     } catch (error) {
+      cancelFirstTokenTimeout();
+
       if (error instanceof LlmError) {
         if (!isRetryable(error) || attempt === MAX_RETRIES) throw error;
         lastError = error;
@@ -102,10 +131,9 @@ export async function openStream(args: {
         throw new LlmError('timeout_total', 'Общий лимит времени исчерпан');
       }
 
-      const wrapped =
-        error instanceof DOMException && error.name === 'TimeoutError'
-          ? new LlmError('timeout_first', 'Модель не ответила за отведённое время')
-          : new LlmError('network', 'Не удалось связаться с поставщиком модели');
+      const wrapped = timedOut
+        ? new LlmError('timeout_first', 'Модель не ответила за отведённое время')
+        : new LlmError('network', 'Не удалось связаться с поставщиком модели');
 
       logRequest({
         transport,

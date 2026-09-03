@@ -36,7 +36,7 @@ export function createNativeProvider(args: {
 
     async *stream(opts: LlmStreamOptions): AsyncIterable<string> {
       const started = Date.now();
-      const response = await openStream({
+      const { response, cancelFirstTokenTimeout } = await openStream({
         url,
         headers: {
           Authorization: `Api-Key ${apiKey}`,
@@ -91,6 +91,9 @@ export function createNativeProvider(args: {
         // Кумулятивный чанк: отдаём только прирост.
         if (text.length > previous.length && text.startsWith(previous)) {
           const delta = text.slice(previous.length);
+          // Первый токен пришёл — снимаем таймер, иначе длинный ответ
+          // оборвался бы на 12-й секунде просто потому, что он длинный.
+          if (previous === '') cancelFirstTokenTimeout();
           previous = text;
           yield delta;
         } else if (text !== previous) {

@@ -15,7 +15,16 @@ interface Stats {
 }
 
 /** Состояние 5. Заявка на поток и счётчик мест. */
-export function Admission({ answers, source }: { answers: Answers; source: string }) {
+export function Admission({
+  answers,
+  dayCost,
+  source,
+}: {
+  answers: Answers;
+  /** Посчитанная цена суток. Уходит в заявку (ТЗ, 1.1). */
+  dayCost: number | null;
+  source: string;
+}) {
   const [stats, setStats] = useState<Stats | null>(null);
   const [contact, setContact] = useState('');
   const [name, setName] = useState('');
@@ -59,6 +68,7 @@ export function Admission({ answers, source }: { answers: Answers; source: strin
           role: answers.role ? copy.calibration.role.options[answers.role] : '',
           // Точное число не отправляем никогда — только порядок величины.
           revenueBand: answers.revenue !== null ? revenueBand(answers.revenue) : '',
+          dayCost: dayCost !== null && dayCost > 0 ? formatRub(dayCost) : '',
           source,
         }),
       });
@@ -181,9 +191,4 @@ export function Admission({ answers, source }: { answers: Answers; source: strin
       </form>
     </section>
   );
-}
-
-/** Цена суток строкой — для передачи в заявку. */
-export function dayCostLabel(day: number | null): string {
-  return day !== null && day > 0 ? formatRub(day) : '';
 }

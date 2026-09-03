@@ -28,7 +28,7 @@ export function createOpenAiCompatProvider(args: {
 
     async *stream(opts: LlmStreamOptions): AsyncIterable<string> {
       const started = Date.now();
-      const response = await openStream({
+      const { response, cancelFirstTokenTimeout } = await openStream({
         url,
         headers: {
           Authorization: `Api-Key ${apiKey}`,
@@ -75,6 +75,9 @@ export function createOpenAiCompatProvider(args: {
 
         const delta = frame.choices?.[0]?.delta?.content;
         if (typeof delta === 'string' && delta.length > 0) {
+          // Первый токен пришёл — снимаем таймер, иначе длинный ответ
+          // оборвался бы на 12-й секунде просто потому, что он длинный.
+          if (!emitted) cancelFirstTokenTimeout();
           emitted = true;
           yield delta;
         }

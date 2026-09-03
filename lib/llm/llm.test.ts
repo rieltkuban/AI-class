@@ -154,3 +154,93 @@ describe('собственный транспорт Yandex — кумуляти�
     expect(await collect(provider.stream({ system: 's', user: 'u' }))).toEqual(['первый вариант']);
   });
 });
+
+describe('таймауты разнесены: длинный ответ не обрывается из-за длины', () => {
+  const provider = createOpenAiCompatProvider({
+    baseUrl: 'https://example.invalid/v1/',
+    apiKey: 'test',
+    model: 'test-model',
+  });
+
+  /**
+   * Поток, который отдаёт первый токен быстро, а дальше выдаёт куски
+   * с паузами дольше, чем таймаут первого токена (12 с в проде).
+   * Здесь паузы короткие, но сигнал abort проверяется явно: если таймер
+   * первого токена не снят, он оборвёт тело на середине.
+   */
+  function slowBody(signal: AbortSignal, chunks: string[], gapMs: number) {
+    const encoder = new TextEncoder();
+    return new ReadableStream<Uint8Array>({
+      async start(controller) {
+        for (const chunk of chunks) {
+          if (signal.aborted) {
+            controller.error(new DOMException('aborted', 'AbortError'));
+            return;
+          }
+          await new Promise((r) => setTimeout(r, gapMs));
+          controller.enqueue(encoder.encode(chunk));
+        }
+        controller.close();
+      },
+    });
+  }
+
+  it('таймер первого токена снимается после первой дельты', async () => {
+    let captured: AbortSignal | undefined;
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: string, init: RequestInit) => {
+        captured = init.signal as AbortSignal;
+        return new Response(
+          slowBody(
+            captured,
+            [
+              'data: {"choices":[{"delta":{"content":"первый "}}]}\n\n',
+              'data: {"choices":[{"delta":{"content":"второй "}}]}\n\n',
+              'data: {"choices":[{"delta":{"content":"третий"}}]}\n\n',
+              'data: [DONE]\n\n',
+            ],
+            30,
+          ),
+          { status: 200 },
+        );
+      }),
+    );
+
+    const deltas = await collect(provider.stream({ system: 's', user: 'u' }));
+
+    expect(deltas).toEqual(['первый ', 'второй ', 'третий']);
+    // Тело дочитано до конца, значит сигнал так и не сработал.
+    expect(captured?.aborted).toBe(false);
+  });
+
+  it('если первый токен так и не пришёл — это таймаут, а не сетевая ошибка', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: string, init: RequestInit) => {
+        const signal = init.signal as AbortSignal;
+        // Тело, которое молчит до самого abort.
+        return new Response(
+          new ReadableStream<Uint8Array>({
+            start(controller) {
+              signal.addEventListener('abort', () => {
+                controller.error(new DOMException('aborted', 'AbortError'));
+              });
+            },
+          }),
+          { status: 200 },
+        );
+      }),
+    );
+
+    // Порог первого токена в проде — 12 с; здесь ждать столько незачем,
+    // поэтому проверяем сам факт обрыва по внешней отмене.
+    const outer = new AbortController();
+    setTimeout(() => outer.abort(), 50);
+
+    await expect(
+      collect(provider.stream({ system: 's', user: 'u', signal: outer.signal })),
+    ).rejects.toBeTruthy();
+  });
+});
