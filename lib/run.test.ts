@@ -28,7 +28,6 @@ function failing(kind: 'timeout_first' | 'server'): LlmProvider {
   return {
     name: 'test',
     model: 'test',
-    // eslint-disable-next-line require-yield
     async *stream() {
       throw new LlmError(kind, 'сбой в тесте');
     },

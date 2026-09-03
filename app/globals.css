@@ -59,7 +59,9 @@
 
   --color-term-bg: #07090b;
   --color-term-fg: #d7dee5;
-  --color-term-dim: #6b7784;
+  /* Вторичный текст. Контраст к фону 5,67:1 — WCAG AA для мелкого текста.
+     Прежний #6b7784 давал 4,37:1 и порог не проходил. */
+  --color-term-dim: #7d8a99;
   --color-term-accent: #7ee0a5;
   --color-term-warn: #e0b57e;
 }

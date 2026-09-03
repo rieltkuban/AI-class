@@ -87,8 +87,13 @@ export function Figure({
             {formulaOpen ? copy.figure.formulaHide : copy.figure.formulaToggle}
           </button>
 
+          {/* tabIndex: блок с горизонтальной прокруткой должен быть доступен с клавиатуры. */}
           {formulaOpen && (
-            <pre className="mt-4 overflow-x-auto border border-[var(--color-term-dim)]/40 p-4 text-xs leading-relaxed text-[var(--color-term-dim)]">
+            <pre
+              tabIndex={0}
+              aria-label="Расчёт с подставленными значениями"
+              className="mt-4 overflow-x-auto border border-[var(--color-term-dim)]/40 p-4 text-xs leading-relaxed text-[var(--color-term-dim)] focus-visible:outline focus-visible:outline-1 focus-visible:outline-[var(--color-term-accent)]"
+            >
 {`зона влияния контура      k = ${String(b.k).replace('.', ',')}
 решений в год             N = ${b.n}
 потеря за сутки           p = ${(b.p * 100).toFixed(1).replace('.', ',')}%

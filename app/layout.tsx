@@ -7,12 +7,17 @@ const title = 'ИИ-терминал: цена суток вашего реше�
 const description =
   'Терминал считает, во сколько обходятся сутки задержки в решениях первого лица, и показывает работу ИИ-агента на ваших цифрах.';
 
+// Индексация закрыта, пока сайт не наполнен: иначе в поиск попадут заглушки.
+// Открывается переменной SITE_INDEXABLE=true вместе с app/robots.ts.
+const indexable = process.env.SITE_INDEXABLE === 'true';
+const siteUrl = process.env.SITE_URL;
+
 export const metadata: Metadata = {
+  ...(siteUrl ? { metadataBase: new URL(siteUrl) } : {}),
   title,
   description,
-  openGraph: { title, description, type: 'website', locale: 'ru_RU' },
-  // Индексацию включает заказчик, когда сайт наполнен и открыт.
-  robots: { index: false, follow: false },
+  openGraph: { title, description, type: 'website', locale: 'ru_RU', siteName: title },
+  robots: { index: indexable, follow: indexable },
 };
 
 export const viewport: Viewport = {

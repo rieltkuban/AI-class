@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
 const KEY = 'aiclass.cookies.v1';
@@ -33,9 +34,14 @@ export function CookieNotice({ enabled }: { enabled: boolean }) {
       <div className="mx-auto flex max-w-2xl flex-col gap-3 text-xs text-[var(--color-term-dim)] sm:flex-row sm:items-center sm:justify-between">
         <p>
           Сайт использует cookies и счётчик посещений.{' '}
-          <a href="/privacy" className="underline underline-offset-4">
+          <Link
+            href="/privacy"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline underline-offset-4"
+          >
             Подробнее
-          </a>
+          </Link>
         </p>
         <button
           type="button"

@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useReducer, useRef } from 'react';
 import { Admission } from '@/components/Admission';
 import { Calibration } from '@/components/Calibration';
@@ -166,9 +167,14 @@ export function Experience({ full }: { full: boolean }) {
       )}
 
       <footer className="mt-16 border-t border-[var(--color-term-dim)]/20 pt-6 text-xs text-[var(--color-term-dim)]">
-        <a href="/privacy" className="underline underline-offset-4">
+        <Link
+          href="/privacy"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline underline-offset-4"
+        >
           {copy.footer.privacy}
-        </a>
+        </Link>
       </footer>
     </main>
   );

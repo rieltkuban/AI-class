@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { copy } from '@/content/copy';
 import { track } from '@/lib/analytics';
@@ -168,9 +169,14 @@ export function Admission({
           />
           <span>
             {copy.admission.consent}{' '}
-            <a href="/privacy" className="underline underline-offset-4">
+            <Link
+              href="/privacy"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline underline-offset-4"
+            >
               {copy.footer.privacy}
-            </a>
+            </Link>
           </span>
         </label>
         {touched && !consent && (
