@@ -52,6 +52,30 @@ curl -s -m 10 -o /tmp/aiclass-est.json -w 'HTTP %{http_code}\n' \
 printf '  главная        '
 curl -s -m 10 -o /dev/null -w 'HTTP %{http_code}\n' "$BASE/" || echo "нет ответа"
 
+# ── Тот же запрос, но снаружи: через Caddy или nginx ──────────────────
+# Проверка на 172.18.0.1 идёт в обход прокси и потому ничего не говорит
+# о том, что видит браузер. Расхождение между этими двумя блоками и есть
+# ответ на вопрос «на сервере работает, а на сайте нет».
+PUBLIC="${PUBLIC:-$(curl -4 -fsS --max-time 10 ifconfig.me 2>/dev/null)}"
+if [ -n "$PUBLIC" ]; then
+  echo
+  echo "== снаружи, как видит браузер: $PUBLIC ====================="
+  for scheme in http https; do
+    printf '  %-5s /api/stats     ' "$scheme"
+    curl -sk -m 15 -o /dev/null -w 'HTTP %{http_code}\n' "$scheme://$PUBLIC/api/stats"
+    printf '  %-5s /api/estimate  ' "$scheme"
+    # Файл чистим перед запросом: иначе на упавшем запросе напечатается
+    # тело от предыдущего и картина получится ложной.
+    rm -f /tmp/aiclass-pub.json
+    curl -sk -m 15 -o /tmp/aiclass-pub.json -w 'HTTP %{http_code}\n' \
+      -X POST "$scheme://$PUBLIC/api/estimate" \
+      -H 'Content-Type: application/json' \
+      -d '{"contour":"price","cycleDays":7,"revenue":15000000}'
+    [ -s /tmp/aiclass-pub.json ] && cut -c1-120 /tmp/aiclass-pub.json | sed 's/^/      /' && echo
+  done
+  rm -f /tmp/aiclass-pub.json
+fi
+
 echo
 echo "== последние ошибки службы ================================="
 journalctl -u "$SERVICE" -n 15 --no-pager -p warning 2>/dev/null \
