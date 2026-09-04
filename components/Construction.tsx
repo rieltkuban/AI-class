@@ -7,9 +7,11 @@ export function Construction({ onNext }: { onNext: () => void }) {
   return (
     <section className="min-h-[60vh]">
       <h2 className="text-lg">{copy.construction.heading}</h2>
-      <p className="mt-3 max-w-prose text-sm text-[var(--color-term-dim)]">
-        {copy.construction.lead}
-      </p>
+      {copy.construction.lead.map((line) => (
+        <p key={line} className="mt-3 max-w-prose text-sm leading-relaxed">
+          {line}
+        </p>
+      ))}
 
       <ol className="mt-8 space-y-0">
         {copy.construction.roles.map((role, index) => (
@@ -22,7 +24,18 @@ export function Construction({ onNext }: { onNext: () => void }) {
         ))}
       </ol>
 
-      <p className="max-w-prose border-l-2 border-[var(--color-term-dim)]/40 pl-4 text-xs leading-relaxed text-[var(--color-term-dim)]">
+      <p className="max-w-prose text-sm leading-relaxed">{copy.construction.nightNote}</p>
+
+      <details className="mt-4">
+        <summary className="cursor-pointer text-sm text-[var(--color-term-accent)] underline underline-offset-4">
+          {copy.construction.morningLink}
+        </summary>
+        <p className="mt-3 max-w-prose whitespace-pre-wrap text-sm leading-relaxed text-[var(--color-term-dim)]">
+          {copy.construction.morningPlaceholder}
+        </p>
+      </details>
+
+      <p className="mt-8 max-w-prose border-l-2 border-[var(--color-term-dim)]/40 pl-4 text-xs leading-relaxed text-[var(--color-term-dim)]">
         {copy.construction.calcNote}
       </p>
 

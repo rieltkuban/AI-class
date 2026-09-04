@@ -175,6 +175,9 @@ export function Run({ answers, onNext }: { answers: Answers; onNext: () => void 
                 {copy.run.divergence}
               </p>
               <p className="mt-2 text-sm">{state.divergence}</p>
+              <p className="mt-3 max-w-prose text-xs leading-relaxed text-[var(--color-term-dim)]">
+                {copy.run.divergenceNote}
+              </p>
             </div>
           )}
 

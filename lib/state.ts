@@ -1,7 +1,11 @@
 import type { Contour, CycleDays, EstimateResult } from './pricing';
 
-/** Роль посетителя в решении. В расчёте не участвует, уходит в заявку. */
-export type Role = 'owner' | 'ceo' | 'exec' | 'other';
+/**
+ * Чем управляет посетитель (документ 8, экран 1, вопрос 1).
+ * В расчёте не участвует, уходит в заявку. Вариант 'other' — «я не первое
+ * лицо» — уводит на короткую честную ветку: таких мы не берём.
+ */
+export type Role = 'company' | 'group' | 'unit' | 'other';
 
 /** Состояния страницы (ТЗ, 4.1). URL не меняется, всё живёт в клиентском стейте. */
 export type Screen =
@@ -23,7 +27,11 @@ export interface Answers {
 
 export interface AppState {
   screen: Screen;
-  /** Шаг калибровки: 0 — контур, 1 — цикл, 2 — роль, 3 — выручка. */
+  /**
+   * Шаг калибровки. Порядок из документа 8: 0 — чем управляете,
+   * 1 — контур решения, 2 — длина цикла, 3 — выручка. Выручка последняя
+   * намеренно: поставить её первой — потерять треть посетителей.
+   */
   step: number;
   answers: Answers;
   estimate: EstimateResult | null;
@@ -68,23 +76,8 @@ export function reducer(state: AppState, action: Action): AppState {
     case 'skip':
       return { ...state, screen: 'admission' };
 
-    case 'answer_contour':
-      return {
-        ...state,
-        answers: { ...state.answers, contour: action.value },
-        step: 1,
-      };
-
-    case 'answer_cycle':
-      return {
-        ...state,
-        answers: { ...state.answers, cycleDays: action.value },
-        step: 2,
-      };
-
     case 'answer_role':
-      // Кто не принимает решение сам — уходит на короткую честную ветку,
-      // без прогона и без полной воронки.
+      // «Я не первое лицо» — короткая честная ветка без прогона.
       if (action.value === 'other') {
         return {
           ...state,
@@ -95,6 +88,20 @@ export function reducer(state: AppState, action: Action): AppState {
       return {
         ...state,
         answers: { ...state.answers, role: action.value },
+        step: 1,
+      };
+
+    case 'answer_contour':
+      return {
+        ...state,
+        answers: { ...state.answers, contour: action.value },
+        step: 2,
+      };
+
+    case 'answer_cycle':
+      return {
+        ...state,
+        answers: { ...state.answers, cycleDays: action.value },
         step: 3,
       };
 

@@ -92,7 +92,14 @@ export function Admission({
   return (
     <section className="min-h-[60vh]">
       <h2 className="text-lg">{copy.admission.heading}</h2>
-      <p className="mt-3 max-w-prose text-sm text-[var(--color-term-dim)]">{copy.admission.lead}</p>
+      <p className="mt-1 text-xs uppercase tracking-wide text-[var(--color-term-accent)]">
+        {copy.admission.stream}
+      </p>
+      {copy.admission.lines.map((line) => (
+        <p key={line} className="mt-3 max-w-prose text-sm leading-relaxed">
+          {line}
+        </p>
+      ))}
 
       {stats && (
         <div className="mt-6 text-sm tabular-nums">
@@ -188,7 +195,11 @@ export function Admission({
           disabled={status === 'sending'}
           className="w-full border border-[var(--color-term-accent)] px-6 py-4 text-sm text-[var(--color-term-accent)] disabled:opacity-40"
         >
-          {status === 'sending' ? copy.admission.sending : copy.admission.submit}
+          {status === 'sending'
+            ? copy.admission.sending
+            : stats && !stats.admissionOpen
+              ? copy.admission.waitlist
+              : copy.admission.submit}
         </button>
 
         {status === 'failed' && (

@@ -1,9 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { copy } from '@/content/copy';
-import { formatRub } from '@/lib/format';
-import { revenueBand, type EstimateResult } from '@/lib/pricing';
+import { copy, CONTOUR_INLINE, CYCLE_INLINE } from '@/content/copy';
+import { formatBigRub, formatRub, plural } from '@/lib/format';
+import type { EstimateResult } from '@/lib/pricing';
 import type { Answers } from '@/lib/state';
 import { TypeLine, useSkipTyping } from './TypeLine';
 
@@ -34,45 +34,48 @@ export function Figure({
     );
   }
 
-  const contour = answers.contour ? copy.calibration.contour.options[answers.contour] : '';
-  const cycle = answers.cycleDays ? copy.calibration.cycle.options[answers.cycleDays] : '';
-  const band = answers.revenue !== null ? revenueBand(answers.revenue) : '';
+  const contour = answers.contour ? CONTOUR_INLINE[answers.contour] : '';
+  const cycle = answers.cycleDays ? CYCLE_INLINE[answers.cycleDays] : '';
   const b = estimate.breakdown!;
+
+  // «За год это 34 решения × 6 избыточных суток = 69 млн ₽ неоптимальных.»
+  const decisions = `${b.n} ${plural(b.n, 'решение', 'решения', 'решений')}`;
+
+  // Сумму показываем крупно отдельной строкой, поэтому из выверенной фразы
+  // берём только её начало — до места подстановки.
+  const dayLine = copy.figure.day('\u00a7');
+  const dayLead = dayLine.slice(0, dayLine.indexOf('\u00a7')).trimEnd();
+  const excess = `${b.excessDays} ${plural(b.excessDays, 'избыточные сутки', 'избыточных суток', 'избыточных суток')}`;
 
   return (
     <section className="min-h-[60vh]" aria-live="polite">
       <TypeLine
-        text={copy.figure.computing}
+        text={copy.figure.computing(contour, cycle)}
         instant={skipped}
-        onDone={() => setStep((s) => Math.max(s, 1))}
+        onDone={() => setStep((s) => Math.max(s, 2))}
       />
-
-      {step >= 1 && (
-        <TypeLine
-          className="mt-4 text-sm text-[var(--color-term-dim)]"
-          text={copy.figure.context(contour, cycle, band)}
-          instant={skipped}
-          onDone={() => setStep((s) => Math.max(s, 2))}
-        />
-      )}
 
       {step >= 2 && (
         <div className="mt-10">
-          <p className="text-sm text-[var(--color-term-dim)]">{copy.figure.dayLead}</p>
           {estimate.dayBelowRounding ? (
-            <p className="mt-2 text-xl text-[var(--color-term-warn)]">
+            <p className="text-xl text-[var(--color-term-warn)]">
               {copy.figure.dayBelowRounding}
             </p>
           ) : (
-            <p className="mt-2 text-4xl tabular-nums text-[var(--color-term-accent)] sm:text-5xl">
-              {formatRub(estimate.day!)}
-            </p>
+            <>
+              <p className="max-w-prose text-sm text-[var(--color-term-dim)]">
+                {dayLead}
+              </p>
+              <p className="mt-2 text-4xl tabular-nums text-[var(--color-term-accent)] sm:text-5xl">
+                {formatRub(estimate.day!)}
+              </p>
+            </>
           )}
 
-          <p className="mt-6 text-sm">
+          <p className="mt-6 max-w-prose text-sm leading-relaxed">
             {estimate.year === 0
               ? copy.figure.yearZero
-              : copy.figure.yearLead(formatRub(estimate.year!))}
+              : copy.figure.year(decisions, excess, formatBigRub(estimate.year!))}
           </p>
           {estimate.capped && (
             <p className="mt-2 text-xs text-[var(--color-term-warn)]">{copy.figure.capped}</p>

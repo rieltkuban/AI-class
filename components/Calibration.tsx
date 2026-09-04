@@ -29,7 +29,7 @@ export function Calibration({
         {copy.calibration.progress(state.step + 1, CALIBRATION_STEPS)}
       </p>
 
-      {state.step === 0 && (
+      {state.step === 1 && (
         <Question text={copy.calibration.contour.question}>
           {CONTOURS.map((contour: Contour) => (
             <button
@@ -44,7 +44,7 @@ export function Calibration({
         </Question>
       )}
 
-      {state.step === 1 && (
+      {state.step === 2 && (
         <Question text={copy.calibration.cycle.question}>
           {CYCLE_DAYS.map((days: CycleDays) => (
             <button
@@ -59,7 +59,7 @@ export function Calibration({
         </Question>
       )}
 
-      {state.step === 2 && (
+      {state.step === 0 && (
         <Question text={copy.calibration.role.question}>
           {(Object.keys(copy.calibration.role.options) as Role[]).map((role) => (
             <button

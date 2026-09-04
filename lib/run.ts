@@ -1,3 +1,4 @@
+import { copy } from '@/content/copy';
 import { getFallback, mainPassesStructure, opponentPassesStructure, type FallbackReason } from './fallbacks';
 import { createMockProvider, createProvider, isLlmConfigured, LlmError, TOTAL_TIMEOUT_MS, type LlmProvider } from './llm';
 import { buildUserPrompt, looksLikeLeak, MAIN_SYSTEM, OPPONENT_SYSTEM, type RunFacts } from './prompts';
@@ -10,8 +11,8 @@ export const PREFLIGHT_CHARS = 200;
 export type RunLevel = 'none' | 'figures' | 'fragment';
 
 const TRACK_LABEL: Record<Track, string> = {
-  main: 'Версия 1',
-  opponent: 'Оппонент',
+  main: copy.run.tracks.main,
+  opponent: copy.run.tracks.opponent,
 };
 
 function fallbackText(contour: Contour, track: Track): string {

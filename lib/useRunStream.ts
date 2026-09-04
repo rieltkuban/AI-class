@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useRef, useState } from 'react';
+import { copy } from '@/content/copy';
 import type { Track } from './sse';
 
 export interface TrackState {
@@ -28,8 +29,8 @@ const emptyTrack = (label: string): TrackState => ({
 
 const initial: RunState = {
   status: 'idle',
-  main: emptyTrack('Версия 1'),
-  opponent: emptyTrack('Оппонент'),
+  main: emptyTrack(copy.run.tracks.main),
+  opponent: emptyTrack(copy.run.tracks.opponent),
   divergence: '',
   rateScope: '',
 };
