@@ -52,22 +52,27 @@ curl -s -m 10 -o /tmp/aiclass-est.json -w 'HTTP %{http_code}\n' \
 printf '  главная        '
 curl -s -m 10 -o /dev/null -w 'HTTP %{http_code}\n' "$BASE/" || echo "нет ответа"
 
-# ── Тот же запрос, но снаружи: через Caddy или nginx ──────────────────
-# Проверка на 172.18.0.1 идёт в обход прокси и потому ничего не говорит
-# о том, что видит браузер. Расхождение между этими двумя блоками и есть
-# ответ на вопрос «на сервере работает, а на сайте нет».
+# ── Тот же запрос, но через прокси ────────────────────────────────────
+# Проверка на BIND_HOST идёт в обход Caddy и потому ничего не говорит о
+# том, что видит браузер. Обращаться при этом на свой же внешний адрес
+# бесполезно: сервер сам себя снаружи обычно не видит (NAT), и получается
+# HTTP 000 на работающем сайте. Поэтому --resolve: имя и заголовок Host
+# остаются публичными, а соединение идёт на localhost, где слушает прокси.
 PUBLIC="${PUBLIC:-$(curl -4 -fsS --max-time 10 ifconfig.me 2>/dev/null)}"
 if [ -n "$PUBLIC" ]; then
   echo
-  echo "== снаружи, как видит браузер: $PUBLIC ====================="
+  echo "== через прокси, как видит браузер: $PUBLIC ================"
   for scheme in http https; do
+    port=80; [ "$scheme" = "https" ] && port=443
     printf '  %-5s /api/stats     ' "$scheme"
-    curl -sk -m 15 -o /dev/null -w 'HTTP %{http_code}\n' "$scheme://$PUBLIC/api/stats"
+    curl -sk -m 15 --resolve "$PUBLIC:$port:127.0.0.1" \
+      -o /dev/null -w 'HTTP %{http_code}\n' "$scheme://$PUBLIC/api/stats"
     printf '  %-5s /api/estimate  ' "$scheme"
     # Файл чистим перед запросом: иначе на упавшем запросе напечатается
     # тело от предыдущего и картина получится ложной.
     rm -f /tmp/aiclass-pub.json
-    curl -sk -m 15 -o /tmp/aiclass-pub.json -w 'HTTP %{http_code}\n' \
+    curl -sk -m 15 --resolve "$PUBLIC:$port:127.0.0.1" \
+      -o /tmp/aiclass-pub.json -w 'HTTP %{http_code}\n' \
       -X POST "$scheme://$PUBLIC/api/estimate" \
       -H 'Content-Type: application/json' \
       -d '{"contour":"price","cycleDays":7,"revenue":15000000}'
