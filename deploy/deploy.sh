@@ -8,8 +8,23 @@ set -euo pipefail
 
 APP_DIR="${APP_DIR:-/var/www/aiclass}"
 SERVICE="${SERVICE:-aiclass}"
-HEALTH_URL="${HEALTH_URL:-http://127.0.0.1:3000/api/stats}"
+ENV_FILE="${ENV_FILE:-$APP_DIR/.env.production}"
 BACKUP_DIR="$APP_DIR/.next.previous"
+
+# Значение переменной из .env.production, без кавычек и хвостового \r.
+env_value() {
+  [ -f "$ENV_FILE" ] || return 0
+  sed -n "s/^$1=//p" "$ENV_FILE" | head -1 | tr -d '"'"'"'\r' | tr -d ' '
+}
+
+# Адрес проверки берём оттуда же, откуда его берёт сама служба.
+# Приложение может слушать не loopback, а адрес Docker-шлюза: тогда
+# проверка по 127.0.0.1 даёт ложную тревогу и откатывает хорошую сборку.
+if [ -z "${HEALTH_URL:-}" ]; then
+  health_host=$(env_value BIND_HOST)
+  health_port=$(env_value PORT)
+  HEALTH_URL="http://${health_host:-127.0.0.1}:${health_port:-3000}/api/stats"
+fi
 
 cd "$APP_DIR"
 
@@ -58,9 +73,23 @@ fi
 echo "==> Перезапускаю службу"
 sudo systemctl restart "$SERVICE"
 
-sleep 3
-if ! curl -fsS -o /dev/null "$HEALTH_URL"; then
+# Даём службе время подняться: одна неудачная попытка — ещё не повод
+# сносить свежую сборку.
+echo "==> Проверяю: $HEALTH_URL"
+alive=0
+for _ in $(seq 1 15); do
+  if curl -fsS -o /dev/null "$HEALTH_URL"; then
+    alive=1
+    break
+  fi
+  sleep 1
+done
+
+if [ "$alive" != "1" ]; then
   echo "!! Приложение не отвечает после перезапуска. Откатываюсь."
+  echo "   Проверялся адрес: $HEALTH_URL"
+  echo "   Если приложение слушает другой адрес — задайте его явно:"
+  echo "       HEALTH_URL=http://адрес:порт/api/stats bash deploy/deploy.sh"
   if restore_backup; then
     sudo systemctl restart "$SERVICE"
   fi
