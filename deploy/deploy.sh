@@ -78,7 +78,9 @@ sudo systemctl restart "$SERVICE"
 echo "==> Проверяю: $HEALTH_URL"
 alive=0
 for _ in $(seq 1 15); do
-  if curl -fsS -o /dev/null "$HEALTH_URL"; then
+  # Без -S: пока служба поднимается, первые попытки штатно не проходят,
+  # и печатать «Couldn't connect» на каждую — только пугать без повода.
+  if curl -fs -o /dev/null "$HEALTH_URL"; then
     alive=1
     break
   fi
