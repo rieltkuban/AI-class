@@ -358,7 +358,10 @@ describe('пустая переменная окружения — это «не
       });
       return Promise.resolve(respond([`${frame}\n`]));
     });
-    for await (const _ of provider.stream({ system: 's', user: 'u' })) break;
+    // Достаточно открыть поток: адрес запроса уже перехвачен.
+    const iterator = provider.stream({ system: 's', user: 'u' })[Symbol.asyncIterator]();
+    await iterator.next();
+    await iterator.return?.();
     return seen;
   }
 
