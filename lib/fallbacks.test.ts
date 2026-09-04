@@ -18,11 +18,28 @@ describe('сохранённые прогоны', () => {
     }
   });
 
-  it('заглушки честно опознаются как ненаполненные', () => {
-    expect(fallbacksFilled()).toBe(false);
+  it('прогоны наполнены: ни одного «ЗАМЕНИТЬ» не осталось', () => {
+    expect(fallbacksFilled()).toBe(true);
+    for (const contour of CONTOURS) {
+      const item = getFallback(contour);
+      expect(JSON.stringify(item)).not.toContain('ЗАМЕНИТЬ');
+    }
   });
 
-  it('заглушка основного трека сама проходит контроль структуры', () => {
+  // Набор уходит в промпт на уровне «без своих данных». Если там окажется
+  // инструкция вместо цифр, модель ответит невнятно и её ответ отклонит
+  // контроль структуры — сайт покажет сохранённый пример вместо живого
+  // прогона. Так и было, пока файлы стояли незаполненными.
+  it('обезличенный набор — это данные, а не описание того, что туда вписать', () => {
+    for (const contour of CONTOURS) {
+      const sample = getFallback(contour).sample;
+      expect(sample).toMatch(/\d/);
+      expect(sample.toLowerCase()).not.toContain('подставляется в промпт');
+      expect(sample.toLowerCase()).not.toContain('взять из реального');
+    }
+  });
+
+  it('запасной текст сам проходит контроль структуры', () => {
     for (const contour of CONTOURS) {
       expect(mainPassesStructure(getFallback(contour).main)).toBe(true);
       expect(opponentPassesStructure(getFallback(contour).opponent)).toBe(true);
