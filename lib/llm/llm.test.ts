@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createOpenAiCompatProvider } from './openaiCompat';
 import { createNativeProvider } from './native';
-import { LlmError, readLines } from './provider';
+import { LlmError, readLines, type LlmProvider } from './provider';
 import { createProvider, isLlmConfigured } from './index';
 
 function streamOf(chunks: string[]): ReadableStream<Uint8Array> {
@@ -309,5 +309,86 @@ describe('isLlmConfigured — обещание должно совпадать �
     expect(isLlmConfigured()).toBe(false);
     process.env.YANDEX_BASE_URL = 'https://example.invalid/v1';
     expect(isLlmConfigured()).toBe(true);
+  });
+});
+
+describe('пустая переменная окружения — это «не задано», а не значение', () => {
+  const KEYS = [
+    'LLM_TRANSPORT',
+    'YANDEX_API_KEY',
+    'YANDEX_FOLDER_ID',
+    'YANDEX_BASE_URL',
+    'YANDEX_NATIVE_URL',
+    'MODEL_MAIN',
+    'MODEL_OPPONENT',
+  ];
+  const saved: Record<string, string | undefined> = {};
+
+  beforeEach(() => {
+    for (const key of KEYS) {
+      saved[key] = process.env[key];
+      delete process.env[key];
+    }
+    process.env.LLM_TRANSPORT = 'native';
+    process.env.YANDEX_API_KEY = 'key';
+    process.env.YANDEX_FOLDER_ID = 'folder';
+    process.env.MODEL_MAIN = 'yandexgpt';
+    process.env.MODEL_OPPONENT = 'yandexgpt-lite';
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    for (const key of KEYS) {
+      if (saved[key] === undefined) delete process.env[key];
+      else process.env[key] = saved[key];
+    }
+  });
+
+  /** Куда провайдер реально пошёл: перехватываем первый же запрос. */
+  async function urlOf(provider: LlmProvider): Promise<string> {
+    let seen = '';
+    vi.stubGlobal('fetch', (input: string) => {
+      seen = String(input);
+      const frame = JSON.stringify({
+        result: {
+          alternatives: [
+            { message: { role: 'assistant', text: 'а' }, status: 'ALTERNATIVE_STATUS_FINAL' },
+          ],
+        },
+      });
+      return Promise.resolve(respond([`${frame}\n`]));
+    });
+    for await (const _ of provider.stream({ system: 's', user: 'u' })) break;
+    return seen;
+  }
+
+  it('YANDEX_NATIVE_URL= (объявлена, но пуста) — берётся адрес по умолчанию', async () => {
+    process.env.YANDEX_NATIVE_URL = '';
+    const url = await urlOf(createProvider('yandexgpt'));
+    expect(url).toBe('https://llm.api.cloud.yandex.net/foundationModels/v1/completion');
+  });
+
+  it('одни пробелы — тоже не значение', async () => {
+    process.env.YANDEX_NATIVE_URL = '   ';
+    const url = await urlOf(createProvider('yandexgpt'));
+    expect(url).toBe('https://llm.api.cloud.yandex.net/foundationModels/v1/completion');
+  });
+
+  it('заданный адрес используется как есть, хвостовые слэши срезаются', async () => {
+    process.env.YANDEX_NATIVE_URL = 'https://llm.example.ru//';
+    const url = await urlOf(createProvider('yandexgpt'));
+    expect(url).toBe('https://llm.example.ru/foundationModels/v1/completion');
+  });
+
+  it('пустой YANDEX_BASE_URL на openai — честный отказ, а не запрос в никуда', () => {
+    process.env.LLM_TRANSPORT = 'openai';
+    process.env.YANDEX_BASE_URL = '';
+    expect(isLlmConfigured()).toBe(false);
+    expect(() => createProvider('yandexgpt')).toThrow(LlmError);
+  });
+
+  it('пустое имя модели не считается заданным', () => {
+    process.env.MODEL_MAIN = '   ';
+    expect(isLlmConfigured()).toBe(false);
   });
 });

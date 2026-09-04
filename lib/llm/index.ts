@@ -8,6 +8,11 @@ export { createMockProvider } from './mock';
 
 export type LlmTransport = 'openai' | 'native' | 'mock';
 
+/** Переменная задана и непустая. Пробелы по краям не считаются значением. */
+function filled(name: string): boolean {
+  return (process.env[name] ?? '').trim() !== '';
+}
+
 export function resolveTransport(): LlmTransport {
   const configured = process.env.LLM_TRANSPORT;
   if (configured === 'native') return 'native';
@@ -26,9 +31,9 @@ export function resolveTransport(): LlmTransport {
 export function isLlmConfigured(): boolean {
   const transport = resolveTransport();
   if (transport === 'mock') return true;
-  if (!process.env.YANDEX_API_KEY || !process.env.YANDEX_FOLDER_ID) return false;
-  if (transport === 'openai' && !process.env.YANDEX_BASE_URL) return false;
-  if (!process.env.MODEL_MAIN || !process.env.MODEL_OPPONENT) return false;
+  if (!filled('YANDEX_API_KEY') || !filled('YANDEX_FOLDER_ID')) return false;
+  if (transport === 'openai' && !filled('YANDEX_BASE_URL')) return false;
+  if (!filled('MODEL_MAIN') || !filled('MODEL_OPPONENT')) return false;
   return true;
 }
 
@@ -54,14 +59,14 @@ export function createProvider(model: string, transport = resolveTransport()): L
 
   if (transport === 'native') {
     return createNativeProvider({
-      baseUrl: process.env.YANDEX_NATIVE_URL,
+      baseUrl: process.env.YANDEX_NATIVE_URL?.trim(),
       apiKey,
       folderId,
       model,
     });
   }
 
-  const baseUrl = process.env.YANDEX_BASE_URL;
+  const baseUrl = process.env.YANDEX_BASE_URL?.trim();
   if (!baseUrl) {
     throw new LlmError('not_configured', 'YANDEX_BASE_URL не задан — проверяется пробным запросом');
   }

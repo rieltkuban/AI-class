@@ -35,7 +35,7 @@ const probeText = 'Считай до пяти.';
 const target: { url: string; headers: Record<string, string>; body: unknown } =
   transport === 'openai'
     ? {
-        url: `${(process.env.YANDEX_BASE_URL ?? fail('YANDEX_BASE_URL')).replace(/\/+$/, '')}/chat/completions`,
+        url: `${(process.env.YANDEX_BASE_URL?.trim() || fail('YANDEX_BASE_URL')).replace(/\/+$/, '')}/chat/completions`,
         headers: {
           Authorization: `Api-Key ${apiKey}`,
           'Content-Type': 'application/json',
@@ -47,7 +47,7 @@ const target: { url: string; headers: Record<string, string>; body: unknown } =
         },
       }
     : {
-        url: `${(process.env.YANDEX_NATIVE_URL ?? 'https://llm.api.cloud.yandex.net').replace(/\/+$/, '')}/foundationModels/v1/completion`,
+        url: `${(process.env.YANDEX_NATIVE_URL?.trim() || 'https://llm.api.cloud.yandex.net').replace(/\/+$/, '')}/foundationModels/v1/completion`,
         headers: {
           Authorization: `Api-Key ${apiKey}`,
           'x-folder-id': folderId,

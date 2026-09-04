@@ -26,7 +26,11 @@ export function createNativeProvider(args: {
   model: string;
 }): LlmProvider {
   const { apiKey, folderId, model } = args;
-  const baseUrl = (args.baseUrl ?? NATIVE_DEFAULT_URL).replace(/\/+$/, '');
+  // Пустая строка — это «не задано», а не «адрес пустой». В .env переменную
+  // почти всегда оставляют объявленной, но без значения, и ?? её пропускает:
+  // получается URL «/foundationModels/v1/completion» без хоста, и запрос
+  // падает ещё до сети.
+  const baseUrl = (args.baseUrl?.trim() || NATIVE_DEFAULT_URL).replace(/\/+$/, '');
   const url = `${baseUrl}/foundationModels/v1/completion`;
   const modelUri = model.startsWith('gpt://') ? model : `gpt://${folderId}/${model}`;
 
