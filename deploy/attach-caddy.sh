@@ -74,7 +74,28 @@ if ! curl -fsS --max-time 5 -o /dev/null "http://${GATEWAY}:${APP_PORT}/api/stat
     Проверьте: systemctl status aiclass
     И что BIND_HOST=${GATEWAY} в /var/www/aiclass/.env.production"
 fi
-say "Приложение отвечает на ${GATEWAY}:${APP_PORT}"
+say "Приложение отвечает на ${GATEWAY}:${APP_PORT} (с хоста)"
+
+# ── А ДОСТУЧИТСЯ ЛИ ДО НЕГО КОНТЕЙНЕР ──────────────────────────────────
+# Проверка с хоста ничего не доказывает: запрос идёт через loopback.
+# Из контейнера пакет приходит по мостовому интерфейсу и попадает
+# в цепочку INPUT, где его глушит ufw. Снаружи это выглядит как 502.
+if ! docker exec "$CONTAINER" wget -qO- -T 3 "http://${GATEWAY}:${APP_PORT}/api/stats" >/dev/null 2>&1; then
+  msg="Контейнер ${CONTAINER} НЕ достучался до ${GATEWAY}:${APP_PORT}.
+    Так и будет 502. Почти всегда виноват файрвол хоста.
+
+    Разрешите только этот путь, наружу ничего не открывая:
+        ufw allow from ${GATEWAY%.*}.0/16 to any port ${APP_PORT} proto tcp
+
+    Потом запустите этот скрипт заново."
+  # Если конфиг уже правили — откатываем, чтобы не оставлять заведомо битый блок.
+  if [ -n "${backup:-}" ] && [ -f "${backup:-}" ]; then
+    cp -a "$backup" "$CADDYFILE"
+    printf '\n!! Конфиг возвращён из копии.\n' >&2
+  fi
+  fail "$msg"
+fi
+say "Контейнер достучался до приложения"
 
 # ── Уже подключено? ────────────────────────────────────────────────────
 if grep -qF "reverse_proxy ${GATEWAY}:${APP_PORT}" "$CADDYFILE"; then
