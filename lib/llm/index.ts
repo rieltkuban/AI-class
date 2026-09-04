@@ -15,12 +15,20 @@ export function resolveTransport(): LlmTransport {
   return 'openai';
 }
 
-/** Ключи есть и путь настроен — можно звать модель. */
+/**
+ * Ключи есть и путь настроен — можно звать модель.
+ *
+ * Имена моделей проверяются здесь же: без них createProvider бросит
+ * not_configured, прогон уйдёт в сохранённый пример, а /api/stats до этой
+ * правки бодро отвечал liveRunReady: true. Проверка настройки, которая
+ * расходится с тем, что произойдёт на самом деле, хуже её отсутствия.
+ */
 export function isLlmConfigured(): boolean {
   const transport = resolveTransport();
   if (transport === 'mock') return true;
   if (!process.env.YANDEX_API_KEY || !process.env.YANDEX_FOLDER_ID) return false;
   if (transport === 'openai' && !process.env.YANDEX_BASE_URL) return false;
+  if (!process.env.MODEL_MAIN || !process.env.MODEL_OPPONENT) return false;
   return true;
 }
 

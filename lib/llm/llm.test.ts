@@ -1,7 +1,8 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createOpenAiCompatProvider } from './openaiCompat';
 import { createNativeProvider } from './native';
 import { LlmError, readLines } from './provider';
+import { createProvider, isLlmConfigured } from './index';
 
 function streamOf(chunks: string[]): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
@@ -242,5 +243,71 @@ describe('таймауты разнесены: длинный ответ не о
     await expect(
       collect(provider.stream({ system: 's', user: 'u', signal: outer.signal })),
     ).rejects.toBeTruthy();
+  });
+});
+
+describe('isLlmConfigured — обещание должно совпадать с тем, что случится', () => {
+  const KEYS = [
+    'LLM_TRANSPORT',
+    'YANDEX_API_KEY',
+    'YANDEX_FOLDER_ID',
+    'YANDEX_BASE_URL',
+    'MODEL_MAIN',
+    'MODEL_OPPONENT',
+  ];
+  const saved: Record<string, string | undefined> = {};
+
+  beforeEach(() => {
+    for (const key of KEYS) {
+      saved[key] = process.env[key];
+      delete process.env[key];
+    }
+  });
+
+  afterEach(() => {
+    for (const key of KEYS) {
+      if (saved[key] === undefined) delete process.env[key];
+      else process.env[key] = saved[key];
+    }
+  });
+
+  function setNative() {
+    process.env.LLM_TRANSPORT = 'native';
+    process.env.YANDEX_API_KEY = 'key';
+    process.env.YANDEX_FOLDER_ID = 'folder';
+    process.env.MODEL_MAIN = 'yandexgpt';
+    process.env.MODEL_OPPONENT = 'yandexgpt-lite';
+  }
+
+  it('ключи и модели заданы — путь настроен', () => {
+    setNative();
+    expect(isLlmConfigured()).toBe(true);
+  });
+
+  it('пустое имя основной модели — не настроен', () => {
+    setNative();
+    process.env.MODEL_MAIN = '';
+    expect(isLlmConfigured()).toBe(false);
+  });
+
+  it('пустое имя модели оппонента — не настроен', () => {
+    setNative();
+    process.env.MODEL_OPPONENT = '';
+    expect(isLlmConfigured()).toBe(false);
+  });
+
+  it('без имён моделей createProvider бросает — значит и проверка обязана сказать «нет»', () => {
+    setNative();
+    process.env.MODEL_MAIN = '';
+    expect(isLlmConfigured()).toBe(false);
+    expect(() => createProvider(process.env.MODEL_MAIN!)).toThrow(LlmError);
+  });
+
+  it('транспорт openai без базового адреса — не настроен даже с моделями', () => {
+    setNative();
+    process.env.LLM_TRANSPORT = 'openai';
+    expect(isLlmConfigured()).toBe(false);
+    process.env.YANDEX_BASE_URL = 'https://example.invalid/v1';
+    expect(isLlmConfigured()).toBe(true);
   });
 });
